@@ -21,7 +21,7 @@ int access_addr(int addr, struct mmu *mmu) {
         } else {
                 printf("Page fault. Swapping page %d for page 0...\n", vir_page(addr));
                 // Swap using some algorithm - for now, just swap with page 0
-                swap(pg, mmu->tbl[0]->vir_pg, mmu);
+                swap(pg, page_in_frame(0, mmu), mmu);
                 printf("Done.\n");
                 return phys_addr(addr, mmu);
         }
@@ -102,11 +102,24 @@ void swap(struct mem_page *in, struct mem_page *out, struct mmu *mmu) {
         outEnt->phys_mapping = INVALID;
 }
 
+struct mem_page *page_in_frame(int phys_frame, struct mmu *mmu) {
+        if(phys_frame < 0 || phys_frame >= PHYS_PAGE_COUNT) return NULL;
+
+        int i;
+        for(i = 0; i < VIR_PAGE_COUNT; ++i) {
+                struct table_entry *ent = mmu->tbl[i];
+                if(ent->phys_mapping == phys_frame) {
+                        return ent->vir_pg;
+                }
+        }
+        return NULL;
+}
+
 // Memory management
 
 struct mmu *create_mmu(void) {
         // allocate memory for struct
-        struct mmu *ptr = (struct mmu *)malloc(sizeof(struct mmu *));
+        struct mmu *ptr = (struct mmu *)malloc(sizeof(struct mmu));
 
         // create a page_table
         ptr->tbl = create_table(VIR_PAGE_COUNT);
@@ -120,10 +133,16 @@ void free_mmu(struct mmu *ptr) {
 }
 
 // Helpers
-void set_default_mapping(struct mmu *ptr) {
+void reset_default_mapping(struct mmu *ptr) {
         page_table tbl = ptr->tbl;
         int i;
+
         // The upper pages in the virtual address space are unmapped by default
+        for(i = 0; i < PHYS_PAGE_COUNT; ++i) {
+                struct table_entry *ent = tbl[i];
+                ent->phys_mapping = i;
+        }
+
         for(i = PHYS_PAGE_COUNT; i < VIR_PAGE_COUNT; ++i) {
                 struct table_entry *ent = tbl[i];
                 ent->phys_mapping = INVALID;

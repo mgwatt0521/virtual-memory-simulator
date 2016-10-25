@@ -8,7 +8,7 @@
 // Memory management
 
 struct table_entry *create_entry(int vir_page, int phys_mapping) {
-        struct table_entry *ent = (struct table_entry *)malloc(sizeof(struct table_entry *));
+        struct table_entry *ent = (struct table_entry *)malloc(sizeof(struct table_entry));
         ent->vir_pg = create_page(vir_page);
         ent->phys_mapping = phys_mapping;
         return ent;
@@ -20,7 +20,7 @@ void free_entry(struct table_entry *ent) {
 }
 
 page_table create_table(int size) {
-        page_table tbl = (page_table)malloc(sizeof(struct table_entry *) * size);
+        page_table tbl = (page_table)malloc(sizeof(struct table_entry) * size);
         int i;
         for(i = 0; i < size; ++i) {
                 tbl[i] = create_entry(i, i);
@@ -44,6 +44,6 @@ void print_table(page_table tbl, int size) {
                 if(ent->phys_mapping >= 0) {
                         printf(" -> %d", ent->phys_mapping);
                 }
-                printf("\n\n");
+                printf("\n");
         }
 }

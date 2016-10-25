@@ -9,10 +9,10 @@
 #include <stdbool.h>
 #include "page_table.h"
 
-static const int VIR_PAGE_COUNT = 16;
-static const int PHYS_PAGE_COUNT = 8;
-static const int MAX_ADDR = 65535; // bytes in memory are 0-indexed, pages are 4KB
-static const int INVALID = 0 - MAX_ADDR;
+#define VIR_PAGE_COUNT 16
+#define PHYS_PAGE_COUNT 8
+#define MAX_ADDR 65535 // bytes in memory are 0-indexed, pages are 4KB
+#define INVALID -MAX_ADDR
 
 struct mmu {
         page_table tbl;
@@ -46,7 +46,9 @@ int phys_addr(int vir_addr, struct mmu *);
 *               out - page to be swapped out
 *               mmu - mmu where the swapping is to be done
 */
-void swap(struct mem_page *, struct mem_page *, struct mmu *);
+void swap(struct mem_page *in, struct mem_page *out, struct mmu *mmu);
+
+struct mem_page *page_in_frame(int phys_frame, struct mmu *mmu);
 
 // Memory management
 
@@ -73,6 +75,6 @@ void free_mmu(struct mmu*);
 *       the first 8 pages in the virtual address space
 *       are mapped to physical memory
 */
-void set_default_mapping(struct mmu *);
+void reset_default_mapping(struct mmu *);
 
 #endif

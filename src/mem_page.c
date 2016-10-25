@@ -5,7 +5,7 @@
 #include "mem_page.h"
 
 struct mem_page * create_page(int page_num) {
-        struct mem_page *pg = (struct mem_page *)malloc(sizeof(struct mem_page *));
+        struct mem_page *pg = (struct mem_page *)malloc(sizeof(struct mem_page));
         pg->dirty_bit = false;
         pg->vir_page_num = page_num;
         //printf("Successfully created page.\n");
@@ -17,5 +17,5 @@ void free_page(struct mem_page *pg) {
 }
 
 void print_page(struct mem_page *pg) {
-        printf("[Page: %d, Modified: %d]", pg->vir_page_num, pg->dirty_bit);
+        printf("\t[Page: %d, Modified: %d]", pg->vir_page_num, pg->dirty_bit);
 }
