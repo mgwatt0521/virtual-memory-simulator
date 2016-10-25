@@ -5,68 +5,127 @@
 
 #include "mmu.h"
 
+// MMU functions
+
+int access_addr(int addr, struct mmu *mmu) {
+        int phys_address = phys_addr(addr, mmu);
+        struct mem_page *pg = mmu->tbl[vir_page(addr)]->vir_pg;
+
+        // Two possible outcomes - the page is either:
+        //      1. In memory - if so, print physical mapping
+        //      2. Not in memory
+        // In the latter case, the page must be swapped in
+        if(phys_address != INVALID) {
+                // Address is mapped to memory
+                return phys_address;
+        } else {
+                printf("Page fault. Swapping page %d for page 0...\n", vir_page(addr));
+                // Swap using some algorithm - for now, just swap with page 0
+                swap(pg, mmu->tbl[0]->vir_pg, mmu);
+                printf("Done.\n");
+                return phys_addr(addr, mmu);
+        }
+
+        // If invalid range or other error condition, access fails
+        return INVALID;
+}
+
+/*
+*       Params:
+*               vir_addr: int representing some virtual address in the virtual address space
+*       Return:
+*               the mapping of the address to a page num in the vir_addr space
+*/
+int vir_page(int vir_addr) {
+        if(vir_addr > 0 && vir_addr <= MAX_ADDR) {
+                // Need to extract the top 4 bits, they represent the virtual page number
+                int mask = 0xf000;
+                int vir_pg = vir_addr & mask;
+
+                // Now that we've got the top 4, shift them into the bottom 4 bits
+                // to get our virtual page
+                vir_pg = vir_pg >> 12;
+                return vir_pg;
+        }
+        return INVALID;
+}
+
+/*
+*       Takes a virtual page [int 0-15] and determines
+*       whether or not the specified page is in memory
+*       Return:
+*               If vir_addr has a mapping to physical memory, the phys page number
+*               Else INVALID
+*/
+int phys_addr(int vir_addr, struct mmu *mmu) {
+        int vir_pg = vir_page(vir_addr);
+
+        // If the virtual page is within our acceptable range [0-15]
+        if(vir_pg != INVALID) {
+
+                // We can use the index to look up the right virtual page in the table
+                // Then we check to see if it has a physical mapping
+                struct table_entry *ent = mmu->tbl[vir_pg];
+
+                // If it has a mapping, we convert the virtual address into a physical one
+                if(ent->phys_mapping >= 0) {
+                        int phys_page = ent->phys_mapping;
+
+                        // We need to shift the page number to the uppermost
+                        // 3 bits of the 15-bit physical address
+                        int mask = phys_page << 12;
+
+                        // Then we extract the lower 12 bits of vir_addr which is the
+                        // address within the page we're looking for
+                        int addr_within_pg = 0x0fff & vir_addr;
+
+                        // Finally, we OR our mask with the address within the page
+                        // to combine the 2 into our mapped physical address and return it
+                        return (mask | addr_within_pg);
+                }
+        }
+        return INVALID;
+}
+
+/*
+*       Swaps a page out of memory (by assigning value of INVALID)
+*       and swaps another in
+*       Params:
+*               in - page to be swapped in
+*               out - page to be swapped out
+*               mmu - mmu where the swapping is to be done
+*/
+void swap(struct mem_page *in, struct mem_page *out, struct mmu *mmu) {
+        struct table_entry *inEnt = mmu->tbl[in->vir_page_num];
+        struct table_entry *outEnt = mmu->tbl[out->vir_page_num];
+        inEnt->phys_mapping = outEnt->phys_mapping;
+        outEnt->phys_mapping = INVALID;
+}
+
+// Memory management
+
 struct mmu *create_mmu(void) {
         // allocate memory for struct
         struct mmu *ptr = (struct mmu *)malloc(sizeof(struct mmu *));
 
-        // create a mem_page arr of size VIR_PAGE_COUNT
-        ptr->vir_mem = make_pages(VIR_PAGE_COUNT);
+        // create a page_table
+        ptr->tbl = create_table(VIR_PAGE_COUNT);
 
-        // set first 8 pages to be in memory
-        int i;
-        for(i = 0; i < PHYS_PAGE_COUNT; ++i) {
-                ptr->vir_mem[i]->present = true;
-                ptr->vir_mem[i]->phys_page_num = i;
-        }
         return ptr;
 }
 
-struct mem_page ** make_pages(int c) {
-        struct mem_page **pages = (struct mem_page **)malloc(c * sizeof(struct mem_page *));
-        int i;
-        for(i = 0; i < c; ++i) {
-                struct mem_page *pg = create_page(i);
-                pages[i] = pg;
-        }
-        return pages;
-}
-
 void free_mmu(struct mmu *ptr) {
-        int i;
-        for(i = 0; i < VIR_PAGE_COUNT; ++i) {
-                free(ptr->vir_mem[i]);
-        }
-        free(ptr->vir_mem);
+        free_table(ptr->tbl, VIR_PAGE_COUNT);
         free(ptr);
 }
 
-int vir_page(int vir_addr) {
-        int mask = 0xe000;
-        int vir_pg = vir_addr & mask;
-        vir_pg = vir_pg >> 13; // top 3 bits to bottom 3 spots
-//        printf("vir_pg for address %d: %d\n", vir_addr, vir_pg);
-        return vir_pg;
-}
-
-void print_state(struct mmu *ptr) {
+// Helpers
+void set_default_mapping(struct mmu *ptr) {
+        page_table tbl = ptr->tbl;
         int i;
-        printf("***** Virtual pages *****\n");
-        for(i = 0; i < VIR_PAGE_COUNT; ++i) {
-                print_page(ptr->vir_mem[i], false);
-                printf("\n");
-        }
-
-        printf("***** Physical memory *****\n");
-        for(i = 0; i < VIR_PAGE_COUNT; ++i) {
-                if(ptr->vir_mem[i]->present) {
-                        print_page(ptr->vir_mem[i], true);
-                        printf("\n");
-                }
+        // The upper pages in the virtual address space are unmapped by default
+        for(i = PHYS_PAGE_COUNT; i < VIR_PAGE_COUNT; ++i) {
+                struct table_entry *ent = tbl[i];
+                ent->phys_mapping = INVALID;
         }
 }
-
-/*
-struct mmu {
-        struct mem_page **vir_mem;
-};
-*/

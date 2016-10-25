@@ -9,20 +9,16 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-static const int NOT_PRESENT = -1;
-
 /*
         Structure to represent a memory page
 */
 struct mem_page {
-        bool present;
         bool dirty_bit;
         int vir_page_num;
-        int phys_page_num;
 };
 
 struct mem_page * create_page(int page_num);
-void print_page(struct mem_page *, bool print_phys_pg);
+void print_page(struct mem_page *);
 void free_page(struct mem_page *);
 
 #endif
